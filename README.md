@@ -7,30 +7,68 @@ Suppose you are a javascript developer working on a project. This project is ong
 
 How are you able to do this?
 
-The philosophy
-==============
-The big picture is top priority.
---------------------------------
-TODO Write this part.
+The Philosophy
+--------------
+__The big picture is top priority.__
 
-Explicit statespace definition is better than ad-hoc state inference.
---------------------------------
-TODO Write this part.
+When you look at an existing codebase for the first time, you need context. You need the high-level overview. You need to be able to zoom in to manage details, then zoom back out to see why those details matter. Large objects need a table of contents.
 
-Low-level events are translated into meaningful stories.
---------------------------------
-TODO Write this part.
+__Namespaces are important.__
 
-Dataflow is managed at a high level. Services handle the details.
---------------------------------
-TODO Write this part.
+Naming collisions are annoying. More annoying still are nondescript names that leave you guessing the purpose of the objects they identify. Namespaces are an easy way to indicate groupings (aka <a href="http://en.wikipedia.org/wiki/Chunking_(psychology)">chunks</a>), making it easier to see the bigger picture.
 
-Namespaces are important.
---------------------------------
-TODO Write this part.
+__Low-level events are translated into meaningful stories.__
+
+`"click"`,`"success"`,`"change"`. What does it all mean? If you're going to figure out what's going on in your application every morning, you need to know why these events are important. `"click"` becomes `"the user has submitted the signup form"`. `"success"` becomes `"the project data has been loaded"`. Full sentences in natural language convey the significance and intention of the event.
+
+__Controllers think. Services do.__
+
+By themselves, controllers have no power. They can observe events, track state, communicate with other controllers, and decide what _should_ happen, but nothing actually _will_ happen. They live in an abstract world of awareness and logic.
+
+Conversely, services, by themselves, may have the power to make things happen, but they don't use that power without being told first. Their rubber is on the road, but they won't start rolling until someone gives them a destination.
+
+Without services, controllers _would_ take action, but can't. Without controllers, services _could_ take action, but won't. Only when the two work together can you build an application.
+
+When you're trying to figure out your code each morning, you'll know where to find the ends and where to find means.
+
+__Explicit statespace definition is better than ad-hoc state inference.__
+
+Consider the statespace implied by the following pseudocode:
+
+```
+if a
+  if b
+    # state 1
+  else if c
+    if d
+      # state 2
+    else
+      # state 3
+  else
+    # state 4
+else
+  # state 5
+```
+
+This statespace of length five can be expressed explicitly as an array of strings with a familiar breadcrumb syntax:
+
+```javascript
+[
+  'a',        // state 4
+  'a > b',    // state 1
+  'a > c',    // state 3
+  'a > c > d' // state 2
+]             // state 5 is the default state
+```
+
+To determine what behaviors to apply in your application, you could scatter variations of the if/else block across the codebase to infer the current state of the system at the time of execution. The problem with that approach is that the statespace itself is assumed and undocumented. This may work for programmers who have more than 24 hours to build up a mental model of the application in their heads. Since you do not have this luxury, you need to get that mental model into the code itself.
+
+Instead, you make a list of the possible states a given system in the application could be in, indicating their hierarchy with breadcrumbs. Then, you define the unique behaviors for each state in a central location, explicitly track the state of the system, and apply the correct behaviors accordingly, starting with the more specific behaviors first and falling back to general behaviors otherwise.
+
+
 
 The API
-=======
+-------
 
 The global `amnesiac` object has one method:
 
@@ -40,12 +78,25 @@ The global `amnesiac` object has one method:
 amnesiac.namespace('am');
 ```
 
-The `namespace` method returns an object with four methods:
+The `namespace` method returns an object with five methods:
 
+* `contents`
 * `namespace`
 * `statespace`
 * `begin`
 * `end`
+
+`contents` must be called first and passed an object with three attributes:
+```javascript
+amnesiac.namespace('am').contents({
+  namespaces: [
+  ],
+  statespaces: [
+  ],
+  services: [
+  ]
+});
+```
 
 The `statespace` method returns an object with five methods:
 
@@ -55,7 +106,7 @@ The `statespace` method returns an object with five methods:
 * `begin`
 * `end`
 
-`contents` must be called first. it expects an object with four attributes:
+As with the namespace object, `contents` must be called first. it expects an object with four attributes:
 ```javascript
 amnesiac.namespace('am').statespace('app')
   .contents({
@@ -76,7 +127,7 @@ amnesiac.namespace('am').statespace('app')
     ],
     services: [
       // a list of service names.
-      // examples: "session", "view", "model".
+      // examples: "#session", "#view", "#model".
       // services handle the details of their respective
       // domains and notice events.
     ],
@@ -93,30 +144,27 @@ This object serves as the table of contents for this particular statespace, givi
 
 ```javascript
 amnesiac.namespace('am').statespace('app')
-  .state('root > unauthenticated > loginPage').define(function (state) {
+  .state('root > unauthenticated > loginPage').define(function (controller) {
 
-    state.when('view').notices('the user has submitted a [username] and [password]')
-      .tell('session').to('authenticate({username: username, password: password})')
-      .become('root > unauthenticated > loginPage > authenticating');
+    controller.when('#am.view').notices('the user has submitted a [username] and [password]')
+      .tell('#am.session').to('authenticate({username: username, password: password})')
+      .tell('#am.view').to('disableSubmitButton()')
+      .enter('root > unauthenticated > loginPage > authenticating');
 
   });
 ```
 
 ```javascript
-amnesiac.namespace('am').statespace('app')
+amnesiac.namespace('am')
   .service('session').define(function (notice) {
 
-    var session = {}
-
-    session.authenticate = function (params) {
+    this.authenticate = function (params) {
       ajax.post(url, params, function (response) {
-        notice('authentication succeeded with [response]', {
+        notice('authentication has succeeded with [response]', {
           response: response
         });
       });
     };
-
-    return session;
 
   });
 ```
