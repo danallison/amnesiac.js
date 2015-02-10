@@ -130,68 +130,143 @@
     };
   };
 
-  var newTo = function (spaceName, stateName, noticerName, eventName, serviceName) {
-    return {
-      to: function (actionName) {
-        registerServiceCommand(spaceName, stateName, noticerName, eventName, serviceName, actionName);
-        return newTell(spaceName, stateName, noticerName, eventName);
-      },
-      that: function (differentEventName, variableString) {
-        registerPeerNotification(spaceName, stateName, noticerName, eventName, serviceName, differentEventName, variableString);
-        return newTell(spaceName, stateName, noticerName, eventName);
-      }
-    }
+  var registerNoop = function (spaceName, stateName, noticerName, eventName) {
+    var stateNode = getStateNode(spaceName, stateName);
+    var eventKey = joinNames(noticerName, eventName);
+    stateNode._events[eventKey] = noop;
   };
 
-  var newTell = function (spaceName, stateName, noticerName, eventName) {
-    return {
-      tell: function (serviceName) {
-        return newTo(spaceName, stateName, noticerName, eventName, serviceName);
-      },
-      become: function (nextStateName, variableString) {
-        registerStateChange(spaceName, stateName, noticerName, eventName, nextStateName, variableString);
-        return this;
-      },
-      notify: function (peerName) {
-        registerPeerNotification(spaceName, stateName, noticerName, eventName, peerName);
-        return this;
-      },
-      end: function () {
-        registerConcludingEvent(spaceName, stateName, noticerName, eventName);
-      },
-      ignore: function () {
-        registerNoop(spaceName, stateName, noticerName, eventName);
-      }
-    }
+  function Controller(spaceName, stateName) {
+    var t = this;
+    t._spaceName = spaceName;
+    t._stateName = stateName;
+    t._commands = [];
+    t._accepting = true;
   }
 
-  var newNotices = function (spaceName, stateName, noticerName) {
-    return {
-      notices: function (eventName) {
-        return newTell(spaceName, stateName, noticerName, eventName);
-      },
-      begins: function () {
-        return newTell(spaceName, stateName, noticerName, INITIAL_EVENT);
-      },
-      ends: function () {
-        return newTell(spaceName, stateName, noticerName, CONCLUDING_EVENT);
-      }
-    };
+  var ControllerPrototype = Controller.prototype;
+
+  ControllerPrototype.when = function(serviceOrPeerName) {
+    var t = this;
+    if (!t._accepting) throw '"when" cannot be called here';
+    t._noticerName = serviceOrPeerName;
+    t._previousMethod = 'when';
+    t._accepting = false;
+    return t;
   };
 
-  var newWhen = function (spaceName, stateName) {
-    return {
-      when: function (noticerName) {
-        return newNotices(spaceName, stateName, noticerName);
-      }
-    };
+  ControllerPrototype.notices = function(eventName) {
+    var t = this;
+    if (t._previousMethod != 'when') throw '"notices" cannot be called here';
+    t._eventName = eventName;
+    t._previousMethod = 'notices';
+    t._accepting = true;
+    return t;
+  };
+
+  ControllerPrototype.begins = function() {
+    var t = this;
+    if (t._previousMethod != 'when') throw '"begins" cannot be called here';
+    t._eventName = INITIAL_EVENT;
+    t._accepting = true;
+    return t;
+  };
+
+  ControllerPrototype.ends = function() {
+    var t = this;
+    if (t._previousMethod != 'when') throw '"ends" cannot be called here';
+    t._eventName = CONCLUDING_EVENT;
+    t._accepting = true;
+    return t;
+  };
+
+  ControllerPrototype.tell = function(serviceOrPeerName) {
+    var t = this;
+    if (!t._accepting) throw '"tell" cannot be called here';
+    t._serviceOrPeerName = serviceOrPeerName;
+    t._previousMethod = 'tell';
+    t._accepting = false;
+    return t;
+  };
+
+  ControllerPrototype.enter = function(stateName, variableString) {
+    var t = this;
+    if (!t._accepting) throw '"enter" cannot be called here';
+    t._nextStateName = stateName;
+    t._variableString = variableString;
+    t._registerStateChange();
+    return t;
+  };
+
+  ControllerPrototype.notify = function(peerName) {
+    var t = this;
+    if (!t._accepting) throw '"notify" cannot be called here';
+    t._serviceOrPeerName = peerName;
+    t._differentEventName = t._eventName;
+    t._registerPeerNotification();
+    return t;
+  };
+
+  ControllerPrototype.ignore = function() {
+    var t = this;
+    if (!t._accepting) throw '"ignore" cannot be called here';
+    t._registerNoop();
+  };
+
+  ControllerPrototype.end = function() {
+    // TODO
+  };
+
+  ControllerPrototype.to = function(actionName) {
+    var t = this;
+    if (t._accepting) throw '"to" cannot be called here';
+    t._actionName = actionName;
+    t._registerServiceCommand();
+    t._accepting = true;
+    return t;
+  };
+
+  ControllerPrototype.that = function(eventName, variableString) {
+    var t = this;
+    if (t._accepting) throw '"that" cannot be called here';
+    t._differentEventName = eventName;
+    t._variableString = variableString;
+    t._registerPeerNotification();
+    t._accepting = true;
+    return t;
+  };
+
+  ControllerPrototype._registerServiceCommand = function () {
+    var t = this;
+    registerServiceCommand(t._spaceName, t._stateName, t._noticerName, t._eventName, t._serviceOrPeerName, t._actionName);
+  };
+
+  ControllerPrototype._registerPeerNotification = function () {
+    var t = this;
+    registerPeerNotification(t._spaceName, t._stateName, t._noticerName, t._eventName, t._serviceOrPeerName, t._differentEventName, t._variableString);
+  };
+
+  ControllerPrototype._registerStateChange = function () {
+    var t = this;
+    registerStateChange(t._spaceName, t._stateName, t._noticerName, t._eventName, t._nextStateName, t._variableString);
+  };
+
+  ControllerPrototype._registerNoop = function () {
+    var t = this;
+    registerNoop(t._spaceName, t._stateName, t._noticerName, t._eventName);
+  };
+
+  ControllerPrototype._registerConcludingEvent = function () {
+    // TODO
+    // var t = this;
+    // registerConcludingEvent(t._spaceName, t._stateName, t._noticerName, t._eventName);
   };
 
   var stateDefiner = function (spaceName, stateName) {
     return {
       define: function (definition) {
         allSpaces[spaceName]._definitions.push(function () {
-          new definition(newWhen(spaceName, stateName));
+          new definition(new Controller(spaceName, stateName));
         });
         return allSpaces[spaceName];
       }
