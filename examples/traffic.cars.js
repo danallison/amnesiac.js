@@ -12,7 +12,8 @@ cars.contents({
     'the light is green'
   ],
   services: [
-    'console'
+    'console',
+    'adverbGenerator'
   ],
   peers: [
     '@traffic.light'
@@ -29,13 +30,32 @@ cars.service('console').define(function (notice) {
 
 });
 
+cars.service('adverbGenerator').define(function (notice) {
+  var adverbs = [
+    'swimmingly',
+    'insatiably',
+    'prosaicly',
+    'unfortunately',
+    'interestingly'
+  ]
+
+  var i = 0;
+
+  this.getAdverb = function () {
+    i = (i + 1) % adverbs.length;
+    return adverbs[i];
+  };
+
+});
+
 
 // states
 cars.state('stopped').define(function (controller) {
 
   controller.when('@traffic.light').notices('the light is green')
     .enter('going')
-    .tell('console').to('log("cars are going")');
+    .tell('adverbGenerator').to('getAdverb() => adverb')
+    .tell('console').to('log("cars are " + adverb + " going")');
 
 });
 

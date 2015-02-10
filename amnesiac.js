@@ -94,10 +94,11 @@
     var valueKey = getValueKey(actionName);
     actionName = getActionString(actionName);
     stateNode._events[eventKey] = function (variables) {
-      var value = previousFunction(variables);
-      if (valueKey) variables[valueKey] = value;
+      previousFunction(variables);
       variables[SERVICE_KEY] = allSpaces[spaceName]._services[serviceName];
-      return evalString(SERVICE_KEY + '.' + actionName, variables);
+      var value = evalString(SERVICE_KEY + '.' + actionName, variables);
+      if (valueKey) variables[valueKey] = value;
+      return value;
     };
   };
 
