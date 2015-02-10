@@ -2,7 +2,7 @@
 
   var STATE_SEPARATOR = /\s*>\s*/g,
       STATE_JOINER = ' > ',
-      ACTION_SPLITTER = ' => ',
+      ACTION_VARIABLE_PATTERN = /=>\s*\w+\s*$/,
       SERVICE_KEY = '____service____',
       INITIAL_EVENT = '____init____',
       CONCLUDING_EVENT = '____conclude____',
@@ -66,11 +66,14 @@
   };
 
   var getValueKey = function (actionName) {
-    return actionName.split(ACTION_SPLITTER)[1];
+    var match = actionName.match(ACTION_VARIABLE_PATTERN);
+    if (match) {
+      return match[0].replace(/\W+/g, '');
+    }
   };
 
   var getActionString = function (actionName) {
-    return actionName.split(ACTION_SPLITTER)[0];
+    return actionName.replace(ACTION_VARIABLE_PATTERN, '');
   };
 
   var extractVariableNames = function (string) {
