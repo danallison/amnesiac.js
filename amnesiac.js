@@ -407,6 +407,14 @@
             allSpaces[key].begin();
           }
         });
+      },
+      end: function () {
+        var nameDot = name + '.';
+        Object.keys(allSpaces).forEach(function (key) {
+          if (key.indexOf(nameDot) == (0 + SPACE_NAME_PREFIX.length)) {
+            allSpaces[key].end();
+          }
+        });
       }
     };
   };
