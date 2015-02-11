@@ -1,4 +1,4 @@
-var cars = amnesiac.namespace('traffic').statespace('cars');
+var cars = amnesiac.namespace('traffic').controller('cars');
 
 cars.contents({
   states: [
@@ -12,11 +12,11 @@ cars.contents({
     'the light is green'
   ],
   services: [
-    'console',
-    'adverbGenerator'
+    '@console',
+    '@adverbGenerator'
   ],
   peers: [
-    '@traffic.light'
+    '^traffic.light'
   ]
 });
 
@@ -24,53 +24,62 @@ cars.contents({
 // services
 cars.service('console').define(function (notice) {
 
-  this.log = function (message) {
+  this['log [message]'] = function (message) {
     console.log(message);
   };
 
 });
 
-cars.service('adverbGenerator').define(function (notice) {
-  var adverbs = [
-    'swimmingly',
-    'insatiably',
-    'prosaicly',
-    'unfortunately',
-    'interestingly'
-  ]
+cars.service('adverbGenerator').define(function () {
+    // service.notice
+    var adverbs = [
+      'swimmingly',
+      'insatiably',
+      'prosaicly',
+      'unfortunately',
+      'interestingly'
+    ];
 
-  var i = 0;
+    this['get adverb'] = (function (i) {
+      return function () {
+        i = (i + 1) % adverbs.length;
+        return adverbs[i];
+      };
+    })(0);
 
-  this.getAdverb = function () {
-    i = (i + 1) % adverbs.length;
-    return adverbs[i];
-  };
+  });
 
-});
+var definition = {
+  'stopped': function (controller) {
 
+    controller.when('^traffic.light').notices('the light is green')
+      .enter('going')
+      .tell('@adverbGenerator').to('get adverb => adverb')
+      .note('message: "cars are " + adverb + " going"')
+      .tell('@console').to('log [message]');
+
+  },
+  'going': function (controller) {
+
+    controller.when('^traffic.light').notices('the light is yellow')
+      .note('message: "cars are slowing down"')
+      .tell('@console').to('log [message]')
+      .enter('going > slowingDown');
+
+  },
+  'going > slowingDown': function (controller) {
+
+    controller.when('^traffic.light').notices('the light is red')
+      .note('message: "cars have stopped"')
+      .tell('@console').to('log [message]')
+      .enter('stopped');
+
+  }
+};
 
 // states
-cars.state('stopped').define(function (controller) {
+cars.state('stopped').define(definition['stopped']);
 
-  controller.when('@traffic.light').notices('the light is green')
-    .enter('going')
-    .tell('adverbGenerator').to('getAdverb() => adverb')
-    .tell('console').to('log("cars are " + adverb + " going")');
+cars.state('going').define(definition['going']);
 
-});
-
-cars.state('going').define(function (controller) {
-
-  controller.when('@traffic.light').notices('the light is yellow')
-    .tell('console').to('log("cars are slowing down")')
-    .enter('going > slowingDown');
-
-});
-
-cars.state('going > slowingDown').define(function (controller) {
-
-  controller.when('@traffic.light').notices('the light is red')
-    .tell('console').to('log("cars have stopped")')
-    .enter('stopped');
-
-});
+cars.state('going > slowingDown').define(definition['going > slowingDown']);
