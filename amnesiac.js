@@ -71,13 +71,25 @@
     if (match) return match[0].replace(/\W+/g, '');
   };
 
-  var getActionString = function (actionName) {
-    return actionName.replace(ACTION_VARIABLE_PATTERN, '').trim();
+
+  var extractVariableSections = function (string) {
+    if (!(/\[/).test(string)) return [];
+    return (string.split(/(?:^.*?\[)|(?:\][^\]]*?\[)|(?:\][^\]]*?$)/g) || []).reduce(function (sections, section) {
+      if (section) sections.push(section);
+      return sections;
+    }, []);
+  };
+
+  var extractVariableAssignments = function (string) {
+    return extractVariableSections(string).reduce(function (assignments, section) {
+      if ((/:/).test(section)) assignments.push(section);
+      return assignments;
+    },[]);
   };
 
   var extractVariableNames = function (string) {
-    return (string.match(/\[\w+\]/g) || []).map(function (key) {
-      return key = key.slice(1, key.length - 1);
+    return extractVariableSections(string).map(function (section) {
+      return section.split(':')[0].trim();
     });
   };
 
@@ -89,16 +101,28 @@
     }, {});
   };
 
+  var getActionString = function (actionName) {
+    actionName = actionName.replace(ACTION_VARIABLE_PATTERN, '').trim();
+    var sections = extractVariableSections(actionName);
+    var names = extractVariableNames(actionName);
+    sections.forEach(function (section, i) {
+      actionName = actionName.replace(section, names[i]);
+    });
+    return actionName;
+  };
+
   var registerServiceCommand = function (spaceName, stateName, noticerName, eventName, serviceName, actionName) {
     var stateNode = getStateNode(spaceName, stateName);
     var eventKey = joinNames(noticerName, eventName);
     var previousFunction = stateNode._events[eventKey] || noop;
     var valueKey = getValueKey(actionName);
+    var variableAssignments = extractVariableAssignments(actionName);
     actionName = getActionString(actionName);
     var variableKeys = extractVariableNames(actionName);
     stateNode._events[eventKey] = function (variables) {
       previousFunction(variables);
       variables[SERVICE_KEY] = allSpaces[spaceName]._services[serviceName];
+      if (variableAssignments.length) extend(variables, evalString('{' + variableAssignments.join(',') + '}', variables));
       var value = evalString('/* ' + serviceName + ' */' + SERVICE_KEY + '["' + actionName + '"](' + variableKeys.join(',') + ')', variables);
       if (valueKey) variables[valueKey] = value;
       return value;

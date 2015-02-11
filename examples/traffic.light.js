@@ -46,20 +46,17 @@ light.state('off').define(function (controller) {
 
   controller.when('^traffic.light').begins()
     .enter('on > red')
-    .note('n: 0.5')
-    .tell('@timer').to('wait [n] seconds');
+    .tell('@timer').to('wait [n: 0.5] seconds');
 
 });
 
 light.state('on > green').define(function (controller) {
 
   controller.when('@timer').notices('the timer is complete')
-    .note('message: "changing from green to yellow"')
-    .tell('@console').to('log [message]')
+    .tell('@console').to('log [message: "changing from green to yellow"]')
     .enter('on > yellow')
     .tell('^traffic.cars').that('the light is yellow')
-    .note('n: 1')
-    .tell('@timer').to('wait [n] seconds');
+    .tell('@timer').to('wait [n: 1] seconds');
 
 });
 
@@ -78,11 +75,9 @@ light.state('on > yellow').define(function (controller) {
 light.state('on > red').define(function (controller) {
 
   controller.when('@timer').notices('the timer is complete')
-    .note('message: "changing from red to green"')
-    .tell('@console').to('log [message]')
+    .tell('@console').to('log [message: "changing from red to green"]')
     .enter('on > green')
     .tell('^traffic.cars').that('the light is green')
-    .note('n: 2')
-    .tell('@timer').to('wait [n] seconds');
+    .tell('@timer').to('wait [n: 2] seconds');
 
 });

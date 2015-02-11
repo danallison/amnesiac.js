@@ -55,15 +55,13 @@ var definition = {
     controller.when('^traffic.light').notices('the light is green')
       .enter('going')
       .tell('@adverbGenerator').to('get adverb => adverb')
-      .note('message: "cars are " + adverb + " going"')
-      .tell('@console').to('log [message]');
+      .tell('@console').to('log [message: "cars are " + adverb + " going"]');
 
   },
   'going': function (controller) {
 
     controller.when('^traffic.light').notices('the light is yellow')
-      .note('message: "cars are slowing down"')
-      .tell('@console').to('log [message]')
+      .tell('@console').to('log [message: "cars are slowing down"]')
       .enter('going > slowingDown');
 
   },
