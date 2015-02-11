@@ -6,7 +6,8 @@
       SERVICE_KEY = '____service____',
       INITIAL_EVENT = '____init____',
       CONCLUDING_EVENT = '____conclude____',
-      SPACE_NAME_PREFIX = '@';
+      SPACE_NAME_PREFIX = '^',
+      SERVICE_NAME_PREFIX = '@';
 
   var allSpaces = {};
   var allServices = {};
@@ -67,13 +68,11 @@
 
   var getValueKey = function (actionName) {
     var match = actionName.match(ACTION_VARIABLE_PATTERN);
-    if (match) {
-      return match[0].replace(/\W+/g, '');
-    }
+    if (match) return match[0].replace(/\W+/g, '');
   };
 
   var getActionString = function (actionName) {
-    return actionName.replace(ACTION_VARIABLE_PATTERN, '');
+    return actionName.replace(ACTION_VARIABLE_PATTERN, '').trim();
   };
 
   var extractVariableNames = function (string) {
@@ -96,10 +95,11 @@
     var previousFunction = stateNode._events[eventKey] || noop;
     var valueKey = getValueKey(actionName);
     actionName = getActionString(actionName);
+    var variableKeys = extractVariableNames(actionName);
     stateNode._events[eventKey] = function (variables) {
       previousFunction(variables);
       variables[SERVICE_KEY] = allSpaces[spaceName]._services[serviceName];
-      var value = evalString(SERVICE_KEY + '.' + actionName, variables);
+      var value = evalString('/* ' + serviceName + ' */' + SERVICE_KEY + '["' + actionName + '"](' + variableKeys.join(',') + ')', variables);
       if (valueKey) variables[valueKey] = value;
       return value;
     };
@@ -138,6 +138,17 @@
     var stateNode = getStateNode(spaceName, stateName);
     var eventKey = joinNames(noticerName, eventName);
     stateNode._events[eventKey] = noop;
+  };
+
+  var registerNote = function (spaceName, stateName, noticerName, eventName, noteString) {
+    var stateNode = getStateNode(spaceName, stateName);
+    var eventKey = joinNames(noticerName, eventName);
+    var previousFunction = stateNode._events[eventKey] || noop;
+    stateNode._events[eventKey] = function (variables) {
+      previousFunction(variables);
+      var additionalVariables = evalString('{' + noteString + '}', variables);
+      extend(variables, additionalVariables);
+    };
   };
 
   function Controller(spaceName, stateName) {
@@ -202,6 +213,14 @@
     return t;
   };
 
+  ControllerPrototype.note = function(noteString) {
+    var t = this;
+    if (!t._accepting) throw '"note" cannot be called here';
+    t._noteString = noteString;
+    t._registerNote();
+    return t;
+  };
+
   ControllerPrototype.notify = function(peerName) {
     var t = this;
     if (!t._accepting) throw '"notify" cannot be called here';
@@ -260,6 +279,11 @@
     registerNoop(t._spaceName, t._stateName, t._noticerName, t._eventName);
   };
 
+  ControllerPrototype._registerNote = function () {
+    var t = this;
+    registerNote(t._spaceName, t._stateName, t._noticerName, t._eventName, t._noteString);
+  };
+
   ControllerPrototype._registerConcludingEvent = function () {
     // TODO
     // var t = this;
@@ -294,6 +318,7 @@
   };
 
   var serviceDefiner = function (spaceName, serviceName) {
+    serviceName = SERVICE_NAME_PREFIX + serviceName;
     return {
       define: function (definition) {
         allSpaces[spaceName]._definitions.push(function () {
@@ -381,8 +406,14 @@
 
   var newService = function (serviceName) {
     return {
-      define: function (definition) {
-
+      contents: function (contents) {
+        // methods and events
+        this.define = function (definition) {
+          this._api = {
+            notice: newNoticeFunction(null, serviceName)
+          };
+          definition.call(this._api, this._api);
+        }
       }
     };
   }
@@ -392,8 +423,8 @@
       namespace: function (name2) {
         return namespace(joinNames(name, name2));
       },
-      statespace: function (statespaceName) {
-        var spaceName = SPACE_NAME_PREFIX + joinNames(name, statespaceName);
+      controller: function (controllerName) {
+        var spaceName = SPACE_NAME_PREFIX + joinNames(name, controllerName);
         return allSpaces[spaceName] || (allSpaces[spaceName] = newSpace(spaceName));
       },
       service: function (serviceName) {
