@@ -74,17 +74,14 @@
 
   var extractVariableSections = function (string) {
     if (!(/\[/).test(string)) return [];
-    return (string.split(/(?:^.*?\[)|(?:\][^\]]*?\[)|(?:\][^\]]*?$)/g) || []).reduce(function (sections, section) {
-      if (section) sections.push(section);
-      return sections;
-    }, []);
+    // TODO fix this regexp for scenario like "abc [def: [[],[]]]"
+    return (string.split(/(?:^.*?\[)|(?:\][^\]]*?\[)|(?:\][^\]]*?$)/g) || []).filter(identity);
   };
 
   var extractVariableAssignments = function (string) {
-    return extractVariableSections(string).reduce(function (assignments, section) {
-      if ((/:/).test(section)) assignments.push(section);
-      return assignments;
-    },[]);
+    return extractVariableSections(string).filter(function (section) {
+      return (/:/).test(section);
+    });
   };
 
   var extractVariableNames = function (string) {
