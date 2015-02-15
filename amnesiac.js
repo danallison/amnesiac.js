@@ -17,6 +17,8 @@
 
   var noop = function () {};
 
+  var identity = function (value) { return value; };
+
   var extend = function (extending, object) {
     for (var key in object) {
       extending[key] = object[key];
