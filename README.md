@@ -7,40 +7,47 @@ Suppose you are a javascript developer working on a project. This project is ong
 
 How are you able to do this?
 
-The Philosophy
---------------
-__The big picture is top priority.__
+Hypotheses
+----------
+__Accurate documentation is important.__
 
-When you look at an existing codebase for the first time, you need context. You need the high-level overview. You need to be able to zoom in to manage details, then zoom back out to see why those details matter. Large objects need a table of contents.
+Documentation is a strange animal. It's really helpful to have a clear, human language explanation of how the code works. Unfortunately, time spent writing documentation is time spent not writing code. Worse still, as soon as you're done, the code will likely change, making the documentation out of sync with the code, which is worse than having no documentation at all. One solution is to write "self-documenting code," which is a wonderful ideal to aim for. Unfortunately, it's also really hard to achieve in practice. The nature of the problem that the code solves is often not fully understood until after the code has been written (and even then it might still remain unclear). However, if you forget everything about your code each day, it becomes really important that your code document itself as much as possible. The primary aim of amnesiac.js is to make it easier to write self-documenting code.
+
+__A picture is worth a thousand READMEs.__
+
+Whiteboarding is an essential part of building complex systems. All of those boxes and arrows often provide a great deal of much needed clarity. Wouldn't it be great if those diagrams could be generated from the codebase itself? If your memory of all those whiteboard sessions is wiped out each night, automatically generated visualizations become very valuable.
 
 __Namespaces are important.__
 
 Naming collisions are annoying. More annoying still are nondescript names that leave you guessing the purpose of the objects they identify. Namespaces are an easy way to indicate groupings (aka <a href="http://en.wikipedia.org/wiki/Chunking_(psychology)">chunks</a>), making it easier to see the bigger picture.
 
-__Low-level events are translated into meaningful stories.__
+__Low-level events should be translated into meaningful stories.__
 
 `"click"`,`"success"`,`"change"`. What does it all mean? If you're going to figure out what's going on in your application every morning, you need to know why these events are important. `"click"` becomes `"the user has submitted the signup form"`. `"success"` becomes `"the project data has been loaded"`. Full sentences in natural language convey the significance and intention of the event.
 
 __Explicit statespace definition is better than ad-hoc state inference.__
 
-Consider the statespace implied by the following pseudocode:
-
-```coffeescript
-# state 0
-if a
-  # state 1
-  if b
-    # state 2
-  else if c
-    # state 3
-    if d
-      # state 4
-```
-
-This statespace of length five can be expressed explicitly as an array of strings with a familiar breadcrumb syntax:
+Consider the statespace implied by the following:
 
 ```javascript
-[             // state 0 (default state)
+// state 0
+if (a) {
+  // state 1
+  if (b) {
+    // state 2
+  } else if (c) {
+    // state 3
+    if (d) {
+      // state 4
+    }
+  }
+}
+```
+
+This statespace can be expressed explicitly as an array of strings with a familiar breadcrumb syntax:
+
+```javascript
+[             // state 0 (implied)
   'a',        // state 1
   'a > b',    // state 2
   'a > c',    // state 3
@@ -48,9 +55,9 @@ This statespace of length five can be expressed explicitly as an array of string
 ]
 ```
 
-To determine what behaviors to apply in your application, you could scatter variations of the if/else block across the codebase to infer the current state of the system at the time of execution. The problem with that approach is that the statespace itself is assumed and undocumented. This may work for programmers who have more than 24 hours to build up a mental model of the application in their heads. Since you do not have this luxury, you need to get that mental model into the code itself.
+To determine what behaviors to apply in your application, one approach would be to scatter variations of the if/else block across the codebase to infer the current state of the system at the time of execution. The problem with this approach is that the statespace itself is assumed and undocumented. This may work for programmers who have more than 24 hours to build up a mental model of the application in their heads. Since you do not have this luxury, you need to get that mental model into the code itself.
 
-Instead, you make a list of the possible states a given system in the application could be in, indicating their hierarchy with breadcrumbs. Then, you define the unique behaviors for each state in a central location, explicitly track the state of the system, and apply the correct behaviors accordingly.
+A better approach would be to make a list of the important states a given system in the application could be in, indicating their hierarchy with breadcrumbs. Then, define the unique behaviors for each state in a central location, explicitly track the state of the system, and apply the correct behaviors accordingly. Amnesiac.js makes implementing this approach straight forward.
 
 Objects
 -------
