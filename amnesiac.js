@@ -317,7 +317,12 @@
     return {
       define: function (definition) {
         allSpaces[spaceName]._definitions.push(function () {
-          new definition(new Controller(spaceName, stateName));
+          var controller = new Controller(spaceName, stateName),
+              when = function (name) {
+                return controller.when(name);
+              };
+          when.when = when;
+          new definition(when);
         });
         return allSpaces[spaceName];
       }
@@ -325,19 +330,31 @@
   };
 
   var newNoticeFunction = function (spaceName, serviceName) {
-    var space = allSpaces[spaceName];
-    var notice = function (eventName, variables) {
-      if (space._ended) return;
-      var callback = space._currentState[joinNames(serviceName, eventName)];
-      if (callback) {
-        variables = extend(extend({}, space._stateVariables), extractVariables(eventName, variables));
-        callback(variables || {});
-      }
+    var newNotice = function (space) {
+      return function (eventName, variables) {
+        if (space._ended || !space._currentState) return;
+        var callback = space._currentState[joinNames(serviceName, eventName)];
+        if (callback) {
+          variables = extend(extend({}, space._stateVariables), extractVariables(eventName, variables));
+          callback(variables || {});
+        }
+      };
     };
-    notice.cleanup = function (callback) {
-      allSpaces[spaceName]._cleanupCallbacks.push(callback);
+    if (spaceName) {
+      var space = allSpaces[spaceName];
+      var notice = newNotice(space, serviceName);
+      notice.cleanup = function (callback) {
+        allSpaces[spaceName]._cleanupCallbacks.push(callback);
+      }
+      return notice;
+    } else {
+      return function (eventName, variables) {
+        for (var spaceName in allSpaces) {
+          var space = allSpaces[spaceName];
+          newNotice(space)(eventName, variables);
+        }
+      };
     }
-    return notice;
   };
 
   var serviceDefiner = function (spaceName, serviceName) {
@@ -365,6 +382,17 @@
 
     space.state = function (stateName) {
       return stateDefiner(spaceName, stateName);
+    };
+    space.define = function (definition) {
+      if (typeof definition === 'function') {
+        space._definition = new definition();
+      } else {
+        space._definition = extend({}, definition);
+      }
+      for (var stateName in space._definition) {
+        space.state(stateName).define(space._definition[stateName]);
+      }
+      return space;
     };
     space.service = function (serviceName) {
       return serviceDefiner(spaceName, serviceName);
@@ -395,6 +423,9 @@
         newNoticeFunction(peerName, spaceName)(eventName, variables);
       };
       space._definitions.forEach(function (definition) { definition(); });
+      space._serviceNames.forEach(function (serviceName) {
+        space._services[serviceName] || (space._services[serviceName] = allServices[serviceName]._api);
+      });
       space._currentState = buildState(spaceName, space._currentStateName);
       space.begin = throwError;
       space.end = function () {
@@ -411,7 +442,10 @@
         space.end = throwError;
         space.begin = begin;
       };
-      newNoticeFunction(spaceName, spaceName)(INITIAL_EVENT);
+      setTimeout(function () {
+        // TODO, replace this timeout with a better solution
+        newNoticeFunction(spaceName, spaceName)(INITIAL_EVENT);
+      }, 0);
       return space;
     };
     space.begin = begin;
@@ -432,11 +466,10 @@
       contents: function (contents) {
         // methods and events
         this.define = function (definition) {
-          this._api = {
-            notice: newNoticeFunction(null, serviceName)
-          };
-          definition.call(this._api, this._api);
+          this._api = new definition(newNoticeFunction(null, serviceName));
+          return this;
         }
+        return this;
       }
     };
   }
@@ -451,7 +484,7 @@
         return allSpaces[spaceName] || (allSpaces[spaceName] = newSpace(spaceName));
       },
       service: function (serviceName) {
-        var serviceName = joinNames(name, serviceName);
+        var serviceName = SERVICE_NAME_PREFIX + joinNames(name, serviceName);
         return allServices[serviceName] || (allServices[serviceName] = newService(serviceName));
       },
       begin: function () {
